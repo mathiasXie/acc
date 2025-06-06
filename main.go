@@ -12,7 +12,7 @@ import (
 
 var (
 	db         *gorm.DB
-	configMap  = make(map[string]map[string]string)
+	configMap  = make(map[string]string)
 	configLock sync.RWMutex
 	namespace  string
 )
@@ -43,13 +43,7 @@ func loadConfigFromDB() {
 	defer configLock.Unlock()
 
 	for _, config := range configs {
-		var cfg map[string]string
-		err := json.Unmarshal([]byte(config.ConfigValue), &cfg)
-		if err != nil {
-			log.Printf("config %s can not marshal", config.ConfigKey)
-			continue
-		}
-		configMap[config.ConfigKey] = cfg
+		configMap[config.ConfigKey] = config.ConfigValue
 	}
 }
 
@@ -62,17 +56,26 @@ func refreshConfig() {
 	}
 }
 
-func GetConfig(key string) map[string]string {
+func GetConfig[T any](key string) (T, error) {
 	configLock.RLock()
 	defer configLock.RUnlock()
 
 	config, ok := configMap[key]
 	if !ok {
 		fmt.Printf("Config with key '%s' not found\n", key)
-		return map[string]string{}
+		var zero T
+		return zero, fmt.Errorf("config with key '%s' not found", key)
 	}
 
-	return config
+	// 将 JSON 字符串反序列化为泛型类型 T
+	var result T
+	if err := json.Unmarshal([]byte(config), &result); err != nil {
+		fmt.Printf("Failed to unmarshal config to type %T: %v\n", result, err)
+		var zero T
+		return zero, fmt.Errorf("failed to unmarshal config to type %T: %v", result, err)
+	}
+
+	return result, nil
 }
 
 func SaveConfig(key, name, data, description string) error {
@@ -107,7 +110,7 @@ func SaveConfig(key, name, data, description string) error {
 		return result.Error
 	}
 
-	configMap[key] = cfg
+	configMap[key] = data
 	return nil
 }
 

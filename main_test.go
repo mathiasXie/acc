@@ -1,6 +1,7 @@
 package cloud_config
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -8,9 +9,22 @@ import (
 	"gorm.io/gorm"
 )
 
+type CozeConfig struct {
+	BotID     string `json:"bot_id"`
+	PublicKey string `json:"public_key"`
+	AppID     string `json:"app_id"`
+}
+
+type UserRoleConfig struct {
+	LLM    string `json:"llm"`
+	User   string `json:"user"`
+	Role   string `json:"role"`
+	Speech string `json:"speech"`
+}
+
 func TestInit(t *testing.T) {
 
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=True&loc=Local", "mathias", "123456", "192.168.6.109", "30306", "spring")
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=True&loc=Local", "root", "12345678", "127.0.0.1", "3306", "config_center")
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -18,21 +32,47 @@ func TestInit(t *testing.T) {
 	}
 
 	// Call Init to initialize the database and start the refreshConfig goroutine
-	Init(db, "llm-rpc")
+	Init(db, "asr-server")
 
-	err = SaveConfig("server4", "web server config", "{\"host\":\"localhost\"}", "web server config host,port and other config")
+	config := CozeConfig{
+		BotID:     "1234567890",
+		PublicKey: "1234567890",
+		AppID:     "1234567890",
+	}
+	jsonConfig, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("Failed to marshal config: %v", err)
+	}
+	err = SaveConfig("coze_auth_config", "coze_auth_config", string(jsonConfig), "扣子Auth授权配置")
 	if err != nil {
 		t.Fatalf("Failed to save config: %v", err)
 	} else {
 		t.Logf("save config success")
 	}
-	config := GetConfig("server4")
-	t.Logf("config: %+v\n", config)
-	host := config["host"]
-	if host != "localhost" {
-		t.Errorf("Expected host to be 'localhost', got '%s'", host)
-	} else {
-		t.Logf("host: %s", host)
+
+	userRoleConfig := UserRoleConfig{
+		LLM:    "gpt-4o",
+		User:   "user1",
+		Role:   "admin",
+		Speech: "admin",
 	}
-	RemoveConfig("server4")
+	jsonUserRoleConfig, err := json.Marshal(userRoleConfig)
+	if err != nil {
+		t.Fatalf("Failed to marshal user role config: %v", err)
+	}
+	err = SaveConfig("user_role_config", "user_role_config", string(jsonUserRoleConfig), "用户角色配置")
+	if err != nil {
+		t.Fatalf("Failed to save user role config: %v", err)
+	} else {
+		t.Logf("save user role config success")
+	}
+
+	cloudConfig, err := GetConfig[CozeConfig]("coze_auth_config")
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
+	t.Logf("config: %+v\n", cloudConfig)
+
+	//RemoveConfig("coze_auth_config")
 }

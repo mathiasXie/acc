@@ -20,7 +20,7 @@ type CloudConfig struct {
 
 	CreatedAt *time.Time      `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt *time.Time      `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"updated_at"`
-	DeletedAt *gorm.DeletedAt `gorm:"column:deleted_at;type:timestamp" json:"deleted_at"`
+	DeletedAt *gorm.DeletedAt `gorm:"column:deleted_at;type:timestamp;index:idx_namespace_config_key,unique" json:"deleted_at"`
 }
 
 func NewCloudConfig() *CloudConfig {
