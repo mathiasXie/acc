@@ -28,6 +28,7 @@ func Init(configDB *gorm.DB, configNamespace string) {
 		log.Println("cloud_configs table created")
 	}
 
+	go loadConfigFromDB()
 	// Timed refresh configuration
 	go refreshConfig()
 }
