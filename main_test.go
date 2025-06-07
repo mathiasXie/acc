@@ -32,7 +32,7 @@ func TestInit(t *testing.T) {
 	}
 
 	// Call Init to initialize the database and start the refreshConfig goroutine
-	Init(db, "asr-server")
+	Init(db, "asr")
 
 	config := CozeConfig{
 		BotID:     "1234567890",
@@ -72,7 +72,7 @@ func TestInit(t *testing.T) {
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	t.Logf("config: %+v\n", cloudConfig)
+	t.Logf("config: %+v\n", cloudConfig.AppID)
 
 	//RemoveConfig("coze_auth_config")
 }

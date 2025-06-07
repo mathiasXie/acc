@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	db         *gorm.DB
-	configMap  = make(map[string]string)
-	configLock sync.RWMutex
-	namespace  string
+	db             *gorm.DB
+	configMap      = make(map[string]string)
+	configInstance = make(map[string]interface{})
+	configLock     sync.RWMutex
+	namespace      string
 )
 
 func Init(configDB *gorm.DB, configNamespace string) {
@@ -44,7 +45,12 @@ func loadConfigFromDB() {
 	defer configLock.Unlock()
 
 	for _, config := range configs {
+		// 配置发生过变更
+		if configMap[config.ConfigKey] != config.ConfigValue {
+			delete(configInstance, config.ConfigKey)
+		}
 		configMap[config.ConfigKey] = config.ConfigValue
+
 	}
 }
 
@@ -61,6 +67,10 @@ func GetConfig[T any](key string) (T, error) {
 	configLock.RLock()
 	defer configLock.RUnlock()
 
+	if configInstance[key] != nil {
+		return configInstance[key].(T), nil
+	}
+
 	config, ok := configMap[key]
 	if !ok {
 		fmt.Printf("Config with key '%s' not found\n", key)
@@ -75,6 +85,8 @@ func GetConfig[T any](key string) (T, error) {
 		var zero T
 		return zero, fmt.Errorf("failed to unmarshal config to type %T: %v", result, err)
 	}
+
+	configInstance[key] = result
 
 	return result, nil
 }
