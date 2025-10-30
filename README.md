@@ -14,6 +14,8 @@ cloud_config 是一个基于 Go + GORM 实现的通用配置管理库，适用�
 - 配置项自动定时刷新，首次读取时自动解析为目标结构体并缓存，提升后续读取性能
 - 提供配置的保存、启用、删除等常用接口
 
+> **注意：无需手动建表，Init 时会自动用 GORM Migrator 检查并创建表结构**
+
 ## 常用接口示例
 
 ```go
@@ -24,7 +26,7 @@ cloud_config 是一个基于 Go + GORM 实现的通用配置管理库，适用�
      AppID     string `json:"app_id"`
  }
 
-// 初始化（需先建立表）
+// 初始化
 cloud_config.Init(db, "my-namespace")
 
 // 保存配置
