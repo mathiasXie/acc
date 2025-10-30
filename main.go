@@ -91,15 +91,7 @@ func GetConfig[T any](key string) (T, error) {
 	return result, nil
 }
 
-func SaveConfig(key, name, data, description string) (int64, error) {
-
-	var cfg map[string]string
-	err := json.Unmarshal([]byte(data), &cfg)
-	if err != nil {
-		log.Printf("config %s can not marshal", key)
-		return 0, err
-	}
-
+func SaveConfig(key, name string, data interface{}, description string) (int64, error) {
 	// Check if the config already exists
 	var existingConfig CloudConfig
 	cfgModel := &CloudConfig{}
@@ -113,10 +105,11 @@ func SaveConfig(key, name, data, description string) (int64, error) {
 	} else {
 		cfgModel.Version = existingConfig.Version + 1
 	}
+	cfgStr, _ := json.Marshal(data)
+	cfgModel.ConfigValue = string(cfgStr)
 	cfgModel.ConfigKey = key
 	cfgModel.Enabled = false
 	cfgModel.Namespace = namespace
-	cfgModel.ConfigValue = data
 	cfgModel.ConfigName = name
 	cfgModel.Description = description
 

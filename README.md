@@ -1,5 +1,10 @@
 # cloud_config
 
+安装：
+```bash
+go get github.com/mathiasXie/cloud_config
+```
+
 cloud_config 是一个基于 Go + GORM 实现的通用配置管理库，适用于自定义结构体的配置项统一读写存储。
 
 ## 主要功能
