@@ -148,7 +148,7 @@ func EnableConfig(configKey string, version int64) error {
 		}
 		return nil
 	})
-	if txErr == nil {
+	if txErr != nil {
 		return txErr
 	}
 	configJSON, _ := json.Marshal(configContent)
