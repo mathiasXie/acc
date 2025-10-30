@@ -1,0 +1,35 @@
+# Go build
+/bin/
+/build/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# IDE configs
+.idea/
+.vscode/
+*.sw?
+*.bak
+*.tmp
+.DS_Store
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.user
+
+# Eclipse
+.project
+.classpath
+.c9/
+.settings/
+
+# Others
+*.log
+*.pyc
+node_modules/
