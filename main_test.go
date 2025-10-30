@@ -3,10 +3,10 @@ package cloud_config
 import (
 	"encoding/json"
 	"fmt"
-	"testing"
-
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"testing"
+	"time"
 )
 
 type CozeConfig struct {
@@ -22,7 +22,7 @@ type UserRoleConfig struct {
 	Speech string `json:"speech"`
 }
 
-func TestInit(t *testing.T) {
+func initConfig(t *testing.T) {
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=True&loc=Local", "root", "12345678", "127.0.0.1", "3306", "config_center")
 
@@ -33,7 +33,23 @@ func TestInit(t *testing.T) {
 
 	// Call Init to initialize the database and start the refreshConfig goroutine
 	Init(db, "asr")
+}
 
+func TestGetConfig(t *testing.T) {
+	initConfig(t)
+	time.Sleep(2 * time.Second)
+	cloudConfig, err := GetConfig[CozeConfig]("coze_auth_config")
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
+	t.Logf("config: %+v\n", cloudConfig.AppID)
+
+	//RemoveConfig("coze_auth_config")
+}
+
+func TestInit(t *testing.T) {
+	initConfig(t)
 	config := CozeConfig{
 		BotID:     "1234567890",
 		PublicKey: "1234567890",
@@ -43,7 +59,7 @@ func TestInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to marshal config: %v", err)
 	}
-	err = SaveConfig("coze_auth_config", "coze_auth_config", string(jsonConfig), "扣子Auth授权配置")
+	version, err := SaveConfig("coze_auth_config", "coze_auth_config", string(jsonConfig), "扣子Auth授权配置")
 	if err != nil {
 		t.Fatalf("Failed to save config: %v", err)
 	} else {
@@ -60,13 +76,14 @@ func TestInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to marshal user role config: %v", err)
 	}
-	err = SaveConfig("user_role_config", "user_role_config", string(jsonUserRoleConfig), "用户角色配置")
+	_, err = SaveConfig("user_role_config", "user_role_config", string(jsonUserRoleConfig), "用户角色配置")
 	if err != nil {
 		t.Fatalf("Failed to save user role config: %v", err)
 	} else {
 		t.Logf("save user role config success")
 	}
-
+	t.Logf("version is %d", version)
+	_ = EnableConfig("coze_auth_config", version)
 	cloudConfig, err := GetConfig[CozeConfig]("coze_auth_config")
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
