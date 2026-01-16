@@ -220,3 +220,26 @@ func RemoveConfig(key string) {
 	}
 	delete(configMap, key)
 }
+
+func GetConfigs() []Config {
+	var config []Config
+	result := db.Where("namespace = ? ", namespace).Order("id desc").Find(&config)
+	if result.Error != nil {
+		log.Fatalf("Failed to query configs from the database: %v", result.Error)
+	}
+	return config
+}
+
+func GetVersions(configID, page, size int64) []Version {
+	var version []Version
+	result := db.
+		Where("config_id = ? ", configID).
+		Order("id desc").
+		Limit(int(size)).
+		Offset(int((page - 1) * size)).
+		Find(&version)
+	if result.Error != nil {
+		log.Fatalf("Failed to query versions from the database: %v", result.Error)
+	}
+	return version
+}
