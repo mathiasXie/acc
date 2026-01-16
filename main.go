@@ -228,7 +228,7 @@ func GetConfigs() ([]Config, error) {
 	return config, nil
 }
 
-func GetVersions(configID, page, size int64) ([]Version, error) {
+func GetVersions(configID, page, size int64) ([]Version, int64, error) {
 	var version []Version
 	result := db.
 		Where("config_id = ? ", configID).
@@ -237,7 +237,15 @@ func GetVersions(configID, page, size int64) ([]Version, error) {
 		Offset(int((page - 1) * size)).
 		Find(&version)
 	if result.Error != nil {
-		return nil, fmt.Errorf("failed to query versions from the database: %v", result.Error)
+		return nil, 0, fmt.Errorf("failed to query versions from the database: %v", result.Error)
 	}
-	return version, nil
+	total := int64(0)
+	err := db.
+		Model(&Version{}).
+		Where("config_id = ? ", configID).
+		Count(&total).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query versions from the database: %v", err)
+	}
+	return version, total, nil
 }
