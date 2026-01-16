@@ -249,3 +249,23 @@ func GetVersions(configID, page, size int64) ([]Version, int64, error) {
 	}
 	return version, total, nil
 }
+
+func GetEnabledVersion(configID int64) (*Version, error) {
+	var version *Version
+	result := db.
+		Where("config_id = ? ", configID).
+		Where("enabled = ? ", true).
+		Find(&version)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to query versions from the database: %v", result.Error)
+	}
+	total := int64(0)
+	err := db.
+		Model(&Version{}).
+		Where("config_id = ? ", configID).
+		Count(&total).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to query versions from the database: %v", err)
+	}
+	return version, nil
+}
