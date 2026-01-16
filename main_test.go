@@ -1,12 +1,12 @@
-package cloud_config
+package acc
 
 import (
-	"encoding/json"
 	"fmt"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
 	"testing"
 	"time"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
 type CozeConfig struct {
@@ -38,12 +38,12 @@ func initConfig(t *testing.T) {
 func TestGetConfig(t *testing.T) {
 	initConfig(t)
 	time.Sleep(2 * time.Second)
-	cloudConfig, err := GetConfig[CozeConfig]("coze_auth_config")
+	config, err := GetConfig[CozeConfig]("coze_auth_config")
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	t.Logf("config: %+v\n", cloudConfig.AppID)
+	t.Logf("config: %+v\n", config.AppID)
 
 	//RemoveConfig("coze_auth_config")
 }
@@ -51,20 +51,17 @@ func TestGetConfig(t *testing.T) {
 func TestInit(t *testing.T) {
 	initConfig(t)
 	config := CozeConfig{
-		BotID:     "1234567890",
+		BotID:     "ccccccccccc",
 		PublicKey: "1234567890",
 		AppID:     "1234567890",
 	}
-	jsonConfig, err := json.Marshal(config)
-	if err != nil {
-		t.Fatalf("Failed to marshal config: %v", err)
-	}
-	version, err := SaveConfig("coze_auth_config", "coze_auth_config", string(jsonConfig), "扣子Auth授权配置")
+	version, err := SaveConfig("coze_auth_config", "coze_auth_config", config, "扣子Auth授权配置", "xiezhengdong")
 	if err != nil {
 		t.Fatalf("Failed to save config: %v", err)
 	} else {
 		t.Logf("save config success")
 	}
+	t.Logf("version is %d", version)
 
 	userRoleConfig := UserRoleConfig{
 		LLM:    "gpt-4o",
@@ -72,17 +69,15 @@ func TestInit(t *testing.T) {
 		Role:   "admin",
 		Speech: "admin",
 	}
-	jsonUserRoleConfig, err := json.Marshal(userRoleConfig)
-	if err != nil {
-		t.Fatalf("Failed to marshal user role config: %v", err)
-	}
-	_, err = SaveConfig("user_role_config", "user_role_config", string(jsonUserRoleConfig), "用户角色配置")
+
+	operator := "user1"
+	_, err = SaveConfig("user_role_config", "user_role_config", userRoleConfig, "用户角色配置", operator)
 	if err != nil {
 		t.Fatalf("Failed to save user role config: %v", err)
 	} else {
 		t.Logf("save user role config success")
 	}
-	t.Logf("version is %d", version)
+
 	_ = EnableConfig("coze_auth_config", version)
 	cloudConfig, err := GetConfig[CozeConfig]("coze_auth_config")
 	if err != nil {

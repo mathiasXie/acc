@@ -1,4 +1,4 @@
-package cloud_config
+package acc
 
 import (
 	"encoding/json"
@@ -23,11 +23,18 @@ func Init(configDB *gorm.DB, configNamespace string) {
 	db = configDB
 	namespace = configNamespace
 	// Check if the table exists. If it doesn't exist, create it.
-	if !db.Migrator().HasTable(&CloudConfig{}) {
-		if err := db.Debug().Migrator().CreateTable(&CloudConfig{}); err != nil {
-			log.Fatalf("Failed to create cloud_configs table: %v", err)
+	if !db.Migrator().HasTable(&Config{}) {
+		if err := db.Debug().Migrator().CreateTable(&Config{}); err != nil {
+			log.Fatalf("Failed to create configs table: %v", err)
 		}
-		log.Println("cloud_configs table created")
+		log.Println("configs table created")
+	}
+
+	if !db.Migrator().HasTable(&Version{}) {
+		if err := db.Debug().Migrator().CreateTable(&Version{}); err != nil {
+			log.Fatalf("Failed to create versions table: %v", err)
+		}
+		log.Println("versions table created")
 	}
 
 	go loadConfigFromDB()
@@ -36,10 +43,13 @@ func Init(configDB *gorm.DB, configNamespace string) {
 }
 
 func loadConfigFromDB() {
-	var configs []CloudConfig
-	result := db.Where("namespace=? AND enabled=?", namespace, true).Find(&configs)
+	var configs []Config
+	result := db.
+		Where("namespace=?", namespace).
+		Preload("Version", "enabled=?", true).
+		Find(&configs)
 	if result.Error != nil {
-		log.Fatalf("Failed to query cloud_configs table: %v", result.Error)
+		log.Fatalf("Failed to query configs table: %v", result.Error)
 	}
 
 	configLock.Lock()
@@ -47,11 +57,10 @@ func loadConfigFromDB() {
 
 	for _, config := range configs {
 		// 配置发生过变更
-		if configMap[config.ConfigKey] != config.ConfigValue {
+		if configMap[config.ConfigKey] != config.Version.ConfigValue {
 			delete(configInstance, config.ConfigKey)
 		}
-		configMap[config.ConfigKey] = config.ConfigValue
-
+		configMap[config.ConfigKey] = config.Version.ConfigValue
 	}
 }
 
@@ -72,15 +81,12 @@ func GetConfig[T any](key string) (T, error) {
 
 	config, ok := configMap[key]
 	if !ok {
-		fmt.Printf("Config with key '%s' not found\n", key)
 		var zero T
 		return zero, fmt.Errorf("config with key '%s' not found", key)
 	}
-
 	// 将 JSON 字符串反序列化为泛型类型 T
 	var result T
 	if err := json.Unmarshal([]byte(config), &result); err != nil {
-		fmt.Printf("Failed to unmarshal config to type %T: %v\n", result, err)
 		var zero T
 		return zero, fmt.Errorf("failed to unmarshal config to type %T: %v", result, err)
 	}
@@ -91,56 +97,103 @@ func GetConfig[T any](key string) (T, error) {
 	return result, nil
 }
 
-func SaveConfig(key, name string, data interface{}, description string) (int64, error) {
+func SaveConfig(key, name string, data interface{}, description string, operator string) (int64, error) {
 	// Check if the config already exists
-	var existingConfig CloudConfig
-	cfgModel := &CloudConfig{}
-	existErr := db.Where("namespace = ? and config_key = ?", namespace, key).Order("id desc").First(&existingConfig).Error
-	if existErr != nil {
-		if errors.Is(existErr, gorm.ErrRecordNotFound) {
-			cfgModel.Version = 1
-		} else {
-			return 0, existErr
-		}
-	} else {
-		cfgModel.Version = existingConfig.Version + 1
+	cfgModel := &Config{}
+	existErr := db.
+		Where("namespace = ? and config_key = ?", namespace, key).
+		Order("id desc").
+		Preload("Version", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("id DESC").Limit(1)
+		}).
+		First(&cfgModel).Error
+	if existErr != nil && !errors.Is(existErr, gorm.ErrRecordNotFound) {
+		return 0, existErr
 	}
-	cfgStr, _ := json.Marshal(data)
-	cfgModel.ConfigValue = string(cfgStr)
+
 	cfgModel.ConfigKey = key
-	cfgModel.Enabled = false
 	cfgModel.Namespace = namespace
 	cfgModel.ConfigName = name
+	cfgModel.Operator = operator
 	cfgModel.Description = description
 
 	result := db.Save(cfgModel)
 	if result.Error != nil {
 		return 0, result.Error
 	}
-	//configMap[key] = data
-	return cfgModel.Version, nil
+
+	cfgStr, err := json.Marshal(data)
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal config data to JSON: %v", err)
+	}
+	versionModel := NewVersion()
+	versionModel.Number = cfgModel.Version.Number + 1
+	versionModel.ConfigValue = string(cfgStr)
+	versionModel.Enabled = false
+	versionModel.Operator = operator
+	versionModel.ConfigID = cfgModel.Id
+	result = db.Save(versionModel)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return versionModel.Number, nil
+}
+
+func SaveVersion(key string, data interface{}, operator string) (int64, error) {
+	// Check if the config already exists
+	cfgModel := &Config{}
+	existErr := db.
+		Where("namespace = ? and config_key = ?", namespace, key).
+		Preload("Version", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("id DESC").Limit(1)
+		}).
+		First(&cfgModel).Error
+	if existErr != nil {
+		if errors.Is(existErr, gorm.ErrRecordNotFound) {
+			return 0, fmt.Errorf("config with key '%s' not found", key)
+		}
+		return 0, existErr
+	}
+
+	cfgStr, err := json.Marshal(data)
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal config data to JSON: %v", err)
+	}
+	versionModel := NewVersion()
+	versionModel.Number = cfgModel.Version.Number + 1
+	versionModel.ConfigValue = string(cfgStr)
+	versionModel.Enabled = false
+	versionModel.Operator = operator
+	versionModel.ConfigID = cfgModel.Id
+	result := db.Save(versionModel)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return versionModel.Number, nil
 }
 
 func EnableConfig(configKey string, version int64) error {
 	configLock.Lock()
 	defer configLock.Unlock()
 
-	var configContent *CloudConfig
+	var configContent *Config
 	txErr := db.Transaction(func(tx *gorm.DB) error {
-		err := tx.Where("namespace = ? AND config_key = ? AND version = ?", namespace, configKey, version).First(&configContent).Error
+		err := tx.Where("namespace = ? AND config_key = ?", namespace, configKey).First(&configContent).Error
 		if err != nil {
 			log.Printf("Failed to query config from the database: %v", err)
 			return err
 		}
 		//disable all config
-		err = tx.Model(&CloudConfig{}).Where("namespace = ? AND config_key = ?", namespace, configKey).
+		err = tx.Model(&Version{}).
+			Where("config_id = ?", configContent.Id).
 			Update("enabled", false).Error
 		if err != nil {
 			log.Printf("Failed to update config in the database: %v", err)
 			return err
 		}
 		//enable current version
-		err = tx.Model(&CloudConfig{}).Where("id = ?", configContent.Id).
+		err = tx.Model(&Version{}).
+			Where("config_id = ? AND number = ?", configContent.Id, version).
 			Update("enabled", true).Error
 		if err != nil {
 			log.Printf("Failed to update config in the database: %v", err)
@@ -161,7 +214,7 @@ func RemoveConfig(key string) {
 	defer configLock.Unlock()
 
 	// Soft delete config
-	result := db.Where("namespace = ? AND config_key = ?", namespace, key).Delete(&CloudConfig{})
+	result := db.Where("namespace = ? AND config_key = ?", namespace, key).Delete(&Config{})
 	if result.Error != nil {
 		log.Fatalf("Failed to delete config in the database: %v", result.Error)
 	}
