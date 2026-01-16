@@ -180,24 +180,21 @@ func EnableConfig(configKey string, version int64) error {
 	txErr := db.Transaction(func(tx *gorm.DB) error {
 		err := tx.Where("namespace = ? AND config_key = ?", namespace, configKey).First(&configContent).Error
 		if err != nil {
-			log.Printf("Failed to query config from the database: %v", err)
-			return err
+			return fmt.Errorf("failed to query config from the database: %v", err)
 		}
 		//disable all config
 		err = tx.Model(&Version{}).
 			Where("config_id = ?", configContent.Id).
 			Update("enabled", false).Error
 		if err != nil {
-			log.Printf("Failed to update config in the database: %v", err)
-			return err
+			return fmt.Errorf("failed to update config in the database: %v", err)
 		}
 		//enable current version
 		err = tx.Model(&Version{}).
 			Where("config_id = ? AND number = ?", configContent.Id, version).
 			Update("enabled", true).Error
 		if err != nil {
-			log.Printf("Failed to update config in the database: %v", err)
-			return err
+			return fmt.Errorf("failed to update config in the database: %v", err)
 		}
 		return nil
 	})
@@ -209,28 +206,29 @@ func EnableConfig(configKey string, version int64) error {
 	return nil
 }
 
-func RemoveConfig(key string) {
+func RemoveConfig(key string) error {
 	configLock.Lock()
 	defer configLock.Unlock()
 
 	// Soft delete config
 	result := db.Where("namespace = ? AND config_key = ?", namespace, key).Delete(&Config{})
 	if result.Error != nil {
-		log.Fatalf("Failed to delete config in the database: %v", result.Error)
+		return fmt.Errorf("failed to delete config in the database: %v", result.Error)
 	}
 	delete(configMap, key)
+	return nil
 }
 
-func GetConfigs() []Config {
+func GetConfigs() ([]Config, error) {
 	var config []Config
 	result := db.Where("namespace = ? ", namespace).Order("id desc").Find(&config)
 	if result.Error != nil {
-		log.Fatalf("Failed to query configs from the database: %v", result.Error)
+		return nil, fmt.Errorf("failed to query configs from the database: %v", result.Error)
 	}
-	return config
+	return config, nil
 }
 
-func GetVersions(configID, page, size int64) []Version {
+func GetVersions(configID, page, size int64) ([]Version, error) {
 	var version []Version
 	result := db.
 		Where("config_id = ? ", configID).
@@ -239,7 +237,7 @@ func GetVersions(configID, page, size int64) []Version {
 		Offset(int((page - 1) * size)).
 		Find(&version)
 	if result.Error != nil {
-		log.Fatalf("Failed to query versions from the database: %v", result.Error)
+		return nil, fmt.Errorf("failed to query versions from the database: %v", result.Error)
 	}
-	return version
+	return version, nil
 }
