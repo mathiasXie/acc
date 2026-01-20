@@ -154,6 +154,9 @@ func SaveVersion(key string, data interface{}, operator string) (int64, error) {
 		}
 		return 0, existErr
 	}
+	if data == nil {
+		return 0, nil
+	}
 
 	cfgStr, err := json.Marshal(data)
 	if err != nil {
