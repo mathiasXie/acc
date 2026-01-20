@@ -185,6 +185,7 @@ func EnableConfig(configKey string, version int64) error {
 		//disable all config
 		err = tx.Model(&Version{}).
 			Where("config_id = ?", configContent.Id).
+			Where("enabled = ?", true).
 			Update("enabled", false).Error
 		if err != nil {
 			return fmt.Errorf("failed to update config in the database: %v", err)
