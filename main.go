@@ -37,7 +37,7 @@ func Init(configDB *gorm.DB, configNamespace string) {
 		log.Println("versions table created")
 	}
 
-	go loadConfigFromDB()
+	loadConfigFromDB()
 	// Timed refresh configuration
 	go refreshConfig()
 }
